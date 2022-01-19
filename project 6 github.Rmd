@@ -1,0 +1,161 @@
+---
+title: "mini project 6"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(gbm)
+library(car)
+library(klaR)
+library(ROCR)
+library(boot)
+library(ISLR)
+library(tree)
+library(PRROC)
+library(e1071)
+library(leaps)
+library(dplyr)
+library(Hmisc)
+library(class)
+library(caret)
+library(glmnet)
+library(scales)
+library(stringr)
+library(mltools)
+library(plotROC)
+library(bestglm)
+library(crossval)
+library(stargazer)
+library(gtsummary)
+library(data.table)
+library(randomForest)
+library(verification)
+```
+
+#1a
+```{r, fig.show = 'hide', results = 'hide', message = FALSE, warning = FALSE}
+# cleaning and managing data
+data <- Hitters
+data <- na.omit(data)
+data <- fastDummies::dummy_cols(data)
+data <- within(data, rm(NewLeague, League, Division))
+data$Salary <- log(data$Salary)
+
+# fitting model and summary
+train_control <- trainControl(method="LOOCV")
+treeModel <- train(Salary ~ ., data = data, method = "rpart1SE", trControl = train_control)
+summary(treeModel)
+
+# plot of tree
+par(xpd = NA)
+plot(treeModel$finalModel)
+text(treeModel$finalModel, digits = 4)
+
+# test mse for tree
+treeMSE <- treeModel$results[["RMSE"]]^2
+cat("Test MSE: ", treeMSE)
+```
+
+#1b
+```{r, fig.show = 'hide', results = 'hide', message = FALSE, warning = FALSE}
+treeModelB <- cv.tree(tree(Salary ~ ., data = data), K = 263, FUN = prune.tree)
+which.min(treeModelB$size)
+
+treeMSE <- treeModel$results[["RMSE"]]^2
+cat("Test MSE: ", treeMSE)
+
+summary(treeModel)
+```
+
+#1c
+```{r, fig.show = 'hide', results = 'hide', message = FALSE, warning = FALSE}
+set.seed(123)
+bagModel <- randomForest(Salary ~ ., data = data, mtry = 22, 
+                        ntree = 1000, importance = TRUE)
+
+#summary(bagModel)
+mean(bagModel$mse)
+bagModel$importance
+
+yHatC <- predict(bagModel, newdata = data, ntree = 1000)
+bagMSE <- mean((yHatC - data$Salary)^2)
+cat("Test MSE: ", bagMSE)
+```
+
+#1d
+```{r, fig.show = 'hide', results = 'hide', message = FALSE, warning = FALSE}
+set.seed(123)
+rfModel <- randomForest(Salary ~ ., data = data, 
+                        mtry = 7, ntree = 1000, importance = TRUE)
+summary(rfModel)
+
+mean(rfModel$mse)
+rfModel$importance
+
+yHatD <- predict(rfModel, newdata = data, ntree = 1000)
+rfMSE <- mean((yHatD - data$Salary)^2)
+cat("Test MSE: ", rfMSE)
+```
+
+#1e
+```{r, fig.show = 'hide', results = 'hide', message = FALSE, warning = FALSE}
+set.seed(123)
+boostModel <- gbm(Salary ~ ., data = data, distribution = "gaussian",
+               n.trees = 1000, interaction.depth = 1, shrinkage = .01)
+summary(boostModel)
+
+yHatE <- predict(boostModel, newdata = data)
+bootMSE <- mean((yHatE - data$Salary)^2)
+cat("Test MSE: ", bootMSE)
+```
+
+#2a
+```{r, fig.show = 'hide', results = 'hide', message = FALSE, warning = FALSE}
+library(e1071)
+db <- read.csv(file = "/Users/rachelholley/Desktop/R  projects/4360 project 2/diabetes.csv", header = TRUE, sep = ",")
+db$Outcome <- as.factor(db$Outcome)
+
+set.seed(123)
+tuneOut <- tune(svm, Outcome ~ ., data = db, kernel = "linear", 
+                 ranges = list(cost = c(.0001, .001, .01, .1, 1, 10)), 
+                 scale = TRUE)
+summary(tuneOut)
+bestModel <- tuneOut$best.model
+summary(bestModel)
+yPred <- predict(bestModel, db)
+table(predict = yPred, truth = db$Outcome)
+MSE2a <- (303+142)/(303+142+1174+381)
+cat("Test MSE: ", MSE2a)
+```
+
+#2b
+```{r, fig.show = 'hide', results = 'hide', message = FALSE, warning = FALSE}
+set.seed(123)
+tuneOut2 <- tune(svm, Outcome ~ ., data = db, kernel = "polynomial", 
+                 degree = 2, ranges = list(cost = c(.0001, .001, .01, .1, 1, 10)),
+                 scale = TRUE)
+summary(tuneOut2)
+bestModel2 <- tuneOut2$best.model
+summary(bestModel2)
+yPred2 <- predict(bestModel2, db)
+table(predict = yPred2, truth = db$Outcome)
+MSE2b <- (439+73)/(1243+439+73+245)
+cat("Test MSE: ", MSE2b)
+```
+
+#2c
+```{r, fig.show = 'hide', results = 'hide', message = FALSE, warning = FALSE}
+set.seed(123)
+tuneOut3 <- tune(svm, Outcome ~ ., data = db, kernel = "radial", 
+                 degree = 2, ranges = list(cost = c(0.1, 1, 10, 100, 1000), 
+                                           gamma = c(0.5, 1, 2, 3, 4, 5)),
+                 scale = TRUE)
+summary(tuneOut3)
+bestModel3 <- tuneOut3$best.model
+summary(bestModel3)
+yPred3 <- predict(bestModel3, db)
+table(predict = yPred3, truth = db$Outcome)
+MSE2c <- (0)/(0+1316+684)
+cat("Test MSE: ", MSE2c)
+```
